@@ -1,0 +1,41 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# Databases (Commonly used with FastAPI)
+*.db
+*.sqlite3
+
+# Distribution / Build / Packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type Checking
+.mypy_cache/
+
+# IDE-specific (VS Code, PyCharm)
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
+Thumbs.db
