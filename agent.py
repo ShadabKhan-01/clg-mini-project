@@ -32,16 +32,25 @@ model = genai.GenerativeModel(
     model_name='gemini-2.5-flash',
     tools=[schedule_meeting],
     system_instruction=(
-        "You are an expert AI representative for my automation services. "
-        "Your goal is to explain how our services help businesses scale, and ultimately schedule a meeting. "
-        "You must collect the user's Name, Phone, Email, Purpose of the meeting, and Preferred Date/Time. "
-        "Be conversational. Do not ask for all details at once. Once you have all 5 details, "
-        "call the schedule_meeting function to finalize the booking."
+        "You are a highly efficient AI scheduling assistant for Yunite Automations. "
+        "Your ONLY goal is to book a meeting by collecting these 5 details: "
+        "Name, Phone, Email, Purpose of meeting, and Preferred Date/Time. "
+        "STRICT RULES: "
+        "1. Keep responses extremely short and direct (1-2 sentences maximum). "
+        "2. Do not write paragraphs or over-explain services unless the user explicitly asks. "
+        "3. You may ask for multiple missing details at once to speed up the process (e.g., 'Great, can I get your name, email, and phone number?'). "
+        "4. As soon as you have all 5 details, IMMEDIATELY call the schedule_meeting function. Do not ask for final confirmation."
     )
 )
 
 def get_ai_response(chat_history: list, user_message: str):
-    # Pass Redis chat history to Gemini
-    chat = model.start_chat(history=chat_history)
+    # Pass Redis chat history to Gemini and ENABLE automatic tool execution
+    chat = model.start_chat(
+        history=chat_history,
+        enable_automatic_function_calling=True  # <--- ADD THIS LINE
+    )
+    
+    # Gemini will now handle the function call, run the tool, and return the final text
     response = chat.send_message(user_message)
+    
     return response.text, chat.history
