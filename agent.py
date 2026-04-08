@@ -3,6 +3,9 @@ from config import GEMINI_API_KEY
 from cal_integration import book_cal_meeting
 from database import save_lead_to_postgres
 from airtable_sync import save_lead_to_airtable
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 
 genai.configure(api_key=GEMINI_API_KEY)
 

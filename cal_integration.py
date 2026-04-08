@@ -5,7 +5,7 @@ def book_cal_meeting(name, email, preferred_datetime, purpose):
     url = "https://api.cal.com/v1/bookings"
     
     payload = {
-        "eventTypeId": CAL_EVENT_TYPE_ID,
+        "eventTypeId": int(CAL_EVENT_TYPE_ID),
         "start": preferred_datetime, # Must be formatted correctly (ISO 8601)
         "responses": {
             "name": name,
