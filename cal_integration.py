@@ -6,18 +6,15 @@ def book_cal_meeting(name, email, preferred_datetime, purpose):
     
     payload = {
         "eventTypeId": int(CAL_EVENT_TYPE_ID),
-        "start": preferred_datetime, # Must be formatted correctly (ISO 8601)
+        "start": preferred_datetime, 
         "responses": {
             "name": name,
             "email": email,
             "notes": purpose
         },
+        "metadata": {},
         "timeZone": "Asia/Kolkata", 
         "language": "en"
-    }
-    
-    headers = {
-        "Content-Type": "application/json"
     }
     
     # Pass API key via query param or headers based on Cal.com's latest docs
