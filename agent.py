@@ -46,13 +46,33 @@ model = genai.GenerativeModel(
 )
 
 def get_ai_response(chat_history: list, user_message: str):
-    # Pass Redis chat history to Gemini and ENABLE automatic tool execution
-    chat = model.start_chat(
-        history=chat_history,
-        enable_automatic_function_calling=True  # <--- ADD THIS LINE
-    )
+    # 1. Start chat WITHOUT automatic function calling
+    chat = model.start_chat(history=chat_history)
     
-    # Gemini will now handle the function call, run the tool, and return the final text
+    # 2. Send the message (Cost: 1 API Call)
     response = chat.send_message(user_message)
     
+    # 3. Check if Gemini wants to use a tool
+    if response.function_call:
+        fc = response.function_call
+        
+        # Verify it's the right function
+        if fc.name == "schedule_meeting":
+            # Extract the arguments Gemini gathered
+            args = {
+                "name": fc.args.get("name"),
+                "phone": fc.args.get("phone"),
+                "email": fc.args.get("email"),
+                "purpose": fc.args.get("purpose"),
+                "preferred_datetime": fc.args.get("preferred_datetime")
+            }
+            
+            # Execute the function locally
+            booking_result = schedule_meeting(**args)
+            
+            # RETURN IMMEDIATELY! Do not send the result back to Gemini.
+            # We skip the 2nd API call entirely.
+            return booking_result, chat.history
+
+    # 4. If it wasn't a function call, just return the normal text
     return response.text, chat.history

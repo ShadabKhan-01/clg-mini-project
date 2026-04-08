@@ -21,25 +21,29 @@ async def telegram_webhook(request: Request):
         chat_id = data["message"]["chat"]["id"]
         user_message = data["message"]["text"]
         
-        # 1. Retrieve history from Redis (Upstash)
-        history_key = f"chat_history:{chat_id}"
-        raw_history = redis_client.get(history_key)
+        # --- NEW: The Redis Cooldown Lock ---
+        lock_key = f"lock:{chat_id}"
         
-        # Pylance Fix: Explicitly check if it is a string to satisfy the type checker
-        if isinstance(raw_history, str):
-            chat_history = json.loads(raw_history)
-        else:
-            chat_history = []
+        # If the user messaged in the last 3 seconds, ignore them to save quota
+        if redis_client.exists(lock_key):
+            # Optional: Send a warning to the user
+            send_telegram_message(chat_id, "You are messaging too fast! Please wait a moment.")
+            return {"status": "rate_limited"}
+            
+        # Lock this user out for 3 seconds
+        redis_client.setex(lock_key, 3, "locked")
+        # -------------------------------------
         
-        # 2. Get Gemini Response (Will automatically call Cal.com if needed)
+        # 1. Retrieve history from Redis (from memory.py)
+        chat_history = get_chat_history(chat_id)
+        
+        # 2. Get AI Response
         ai_reply, updated_history = get_ai_response(chat_history, user_message)
         
         # 3. Send response back to Telegram
         send_telegram_message(chat_id, ai_reply)
         
-        # 4. Save updated history back to Redis (expire after 24 hours)
-        # Format history to be JSON serializable for Gemini
-        formatted_history = [{"role": m.role, "parts": [{"text": p.text} for p in m.parts]} for m in updated_history]
-        redis_client.setex(history_key, 86400, json.dumps(formatted_history))
+        # 4. Save updated history back to Redis
+        save_chat_history(chat_id, updated_history)
 
     return {"status": "ok"}
