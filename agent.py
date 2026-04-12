@@ -52,27 +52,23 @@ def get_ai_response(chat_history: list, user_message: str):
     # 2. Send the message (Cost: 1 API Call)
     response = chat.send_message(user_message)
     
-    # 3. Check if Gemini wants to use a tool
-    if response.function_call:
-        fc = response.function_call
-        
-        # Verify it's the right function
-        if fc.name == "schedule_meeting":
-            # Extract the arguments Gemini gathered
-            args = {
-                "name": fc.args.get("name"),
-                "phone": fc.args.get("phone"),
-                "email": fc.args.get("email"),
-                "purpose": fc.args.get("purpose"),
-                "preferred_datetime": fc.args.get("preferred_datetime")
-            }
-            
-            # Execute the function locally
-            booking_result = schedule_meeting(**args)
-            
-            # RETURN IMMEDIATELY! Do not send the result back to Gemini.
-            # We skip the 2nd API call entirely.
-            return booking_result, chat.history
+    # 3. Look inside the response parts to see if Gemini triggered a tool
+    if response.candidates and response.candidates[0].content.parts:
+        for part in response.candidates[0].content.parts:
+            # Check if this specific part is a function call
+            if part.function_call:
+                fc = part.function_call
+                
+                # Verify it is our scheduling tool
+                if fc.name == "schedule_meeting":
+                    # Convert the Google Protobuf object into a standard Python dictionary
+                    args = dict(fc.args)
+                    
+                    # Execute the function locally (Talks to Cal.com, Neon, Airtable)
+                    booking_result = schedule_meeting(**args)
+                    
+                    # RETURN IMMEDIATELY! Do not send the result back to Gemini.
+                    return booking_result, chat.history
 
-    # 4. If it wasn't a function call, just return the normal text
+    # 4. If no function call was found, safely return the normal text
     return response.text, chat.history
