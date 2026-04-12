@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from agent import get_ai_response
+from memory import get_chat_history, save_chat_history
 import requests
 import json
 import redis
