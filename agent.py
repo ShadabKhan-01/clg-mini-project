@@ -16,9 +16,9 @@ def schedule_meeting(name: str, phone: str, email: str, purpose: str, preferred_
     if meet_link:
         save_lead_to_postgres(name, phone, email, purpose, meet_link)
         save_lead_to_airtable(name, phone, email, purpose, preferred_datetime)
-        return f"Success! Meeting booked. Here is the calendar/meet link: {meet_link}"
+        return f"SUCCESS! Meeting booked. Here is the link: {meet_link}"
         
-    return "Failed to book meeting. Please try again later or contact support."
+    return "FAILED! Cal.com rejected the booking. Slot is unavailable."
 
 # Groq requires tools to be defined as strict JSON schemas
 tools = [
@@ -77,23 +77,37 @@ def get_ai_response(chat_history: list, user_message: str):
     
     response_message = response.choices[0].message
     
-    # Check if Groq wants to use the scheduling tool
     if response_message.tool_calls:
+        messages.append(response_message)
+        
         for tool_call in response_message.tool_calls:
             if tool_call.function.name == "schedule_meeting":
-                # Extract the arguments from the AI's JSON output
                 args = json.loads(tool_call.function.arguments)
                 
                 # Execute the local function
-                booking_result = schedule_meeting(**args)
+                raw_result = schedule_meeting(**args)
                 
-                # Update history so the bot remembers the user's request
-                chat_history.append({"role": "user", "content": user_message})
-                
-                # Return the final message immediately to save API calls
-                return booking_result, chat_history
+                # Append the raw result from Python BACK into the message history
+                messages.append({
+                    "tool_call_id": tool_call.id,
+                    "role": "tool",
+                    "name": "schedule_meeting",
+                    "content": raw_result
+                })
+        
+        final_response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            max_tokens=256
+        )
+        
+        final_ai_text = final_response.choices[0].message.content
+        
+        chat_history.append({"role": "user", "content": user_message})
+        chat_history.append({"role": "assistant", "content": final_ai_text})
+        
+        return final_ai_text, chat_history
 
-    # If no tool was called, append the conversation normally
     chat_history.append({"role": "user", "content": user_message})
     chat_history.append({"role": "assistant", "content": response_message.content})
     
