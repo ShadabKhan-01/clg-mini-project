@@ -42,7 +42,7 @@ current_time = datetime.datetime.now().strftime("%A, %d %B %Y %I:%M %p")
 
 # Initialize the Model with tools and a System Prompt
 model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash-latest',
+    model_name='gemini-1.5-flash',
     tools=[schedule_meeting],
     system_instruction=(
         "You are a highly efficient AI scheduling assistant for Yunite Automations. "
