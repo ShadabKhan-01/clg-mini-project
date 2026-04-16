@@ -1,19 +1,28 @@
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+
 import google.generativeai as genai
 from config import GEMINI_API_KEY
 from cal_integration import book_cal_meeting
 from database import save_lead_to_postgres
 from airtable_sync import save_lead_to_airtable
+import datetime
 
+# Configure the SDK
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Define the function Gemini can call
 def schedule_meeting(name: str, phone: str, email: str, purpose: str, preferred_datetime: str):
     """
     Schedules a meeting with the client once all details are gathered.
+    
+    Args:
+        name: The client's name.
+        phone: The client's phone number.
+        email: The client's email address.
+        purpose: The reason for the meeting.
+        preferred_datetime: The date and time of the meeting. This MUST be converted into strict ISO 8601 format with the Asia/Kolkata timezone offset (e.g., "2026-04-17T16:00:00+05:30").
     """
-    # 1. Book the meeting via Cal.com API
+    # 1. Book the meeting via Cal.com API (V2)
     meet_link = book_cal_meeting(name, email, preferred_datetime, purpose)
     
     if meet_link:
@@ -23,25 +32,29 @@ def schedule_meeting(name: str, phone: str, email: str, purpose: str, preferred_
         # 3. Sync to Airtable CRM
         save_lead_to_airtable(name, phone, email, purpose, preferred_datetime)
         
-        # 4. Notify You (The Admin) via Telegram
-        notify_admin(f"New Meeting! {name} - {purpose}. Link: {meet_link}")
+        # Return the final message that will be sent directly to Telegram
+        return f"Success! Meeting booked. Here is the calendar/meet link: {meet_link}"
         
-        return f"Success! Meeting booked. Here is the Google Meet link: {meet_link}"
-    return "Failed to book meeting. Please ask the user to try again later."
+    return "Failed to book meeting. Please try again later or contact support."
+
+# Calculate the current time every time this file is loaded
+current_time = datetime.datetime.now().strftime("%A, %d %B %Y %I:%M %p")
 
 # Initialize the Model with tools and a System Prompt
 model = genai.GenerativeModel(
-    model_name='gemini-2.5-flash',
+    model_name='gemini-1.5-flash-latest',
     tools=[schedule_meeting],
     system_instruction=(
         "You are a highly efficient AI scheduling assistant for Yunite Automations. "
+        f"The current system date and time is {current_time} IST. "
         "Your ONLY goal is to book a meeting by collecting these 5 details: "
         "Name, Phone, Email, Purpose of meeting, and Preferred Date/Time. "
         "STRICT RULES: "
         "1. Keep responses extremely short and direct (1-2 sentences maximum). "
-        "2. Do not write paragraphs or over-explain services unless the user explicitly asks. "
-        "3. You may ask for multiple missing details at once to speed up the process (e.g., 'Great, can I get your name, email, and phone number?'). "
-        "4. As soon as you have all 5 details, IMMEDIATELY call the schedule_meeting function. Do not ask for final confirmation."
+        "2. Do not write paragraphs or over-explain services unless explicitly asked. "
+        "3. Ask for multiple missing details at once to speed up the process. "
+        "4. As soon as you have all 5 details, IMMEDIATELY call the schedule_meeting function. "
+        "5. CRITICAL: When calling schedule_meeting, you MUST calculate the correct future date using the current system date provided, and you MUST format the 'preferred_datetime' argument strictly as ISO 8601 with the +05:30 timezone offset (e.g., YYYY-MM-DDTHH:MM:SS+05:30)."
     )
 )
 
@@ -55,20 +68,14 @@ def get_ai_response(chat_history: list, user_message: str):
     # 3. Look inside the response parts to see if Gemini triggered a tool
     if response.candidates and response.candidates[0].content.parts:
         for part in response.candidates[0].content.parts:
-            # Check if this specific part is a function call
             if part.function_call:
                 fc = part.function_call
                 
-                # Verify it is our scheduling tool
                 if fc.name == "schedule_meeting":
-                    # Convert the Google Protobuf object into a standard Python dictionary
                     args = dict(fc.args)
                     
-                    # Execute the function locally (Talks to Cal.com, Neon, Airtable)
                     booking_result = schedule_meeting(**args)
                     
-                    # RETURN IMMEDIATELY! Do not send the result back to Gemini.
                     return booking_result, chat.history
 
-    # 4. If no function call was found, safely return the normal text
     return response.text, chat.history
